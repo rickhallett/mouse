@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"mouse/internal/config"
 	"mouse/internal/gateway"
 	"mouse/internal/logging"
+	"mouse/internal/telegram"
 )
 
 func main() {
@@ -42,7 +44,26 @@ func main() {
 		return
 	}
 
-	server := gateway.NewServer(cfg, logger)
+	if cfg.App.Workspace != "" {
+		logPath := cfg.App.Workspace + "/logs/mouse.log"
+		if err := logging.SetFile(logPath); err != nil {
+			fmt.Fprintf(os.Stderr, "log setup error: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	if cfg.Telegram.Enabled && cfg.Telegram.Webhook.Enabled {
+		if err := telegram.SetWebhook(context.Background(), cfg.Telegram.BotToken, cfg.Telegram.Webhook.PublicURL, cfg.Telegram.Webhook.Path, cfg.Telegram.Webhook.Secret, logging.New("telegram-webhook")); err != nil {
+			fmt.Fprintf(os.Stderr, "webhook error: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	server, err := gateway.NewServer(cfg, logger)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "gateway error: %v\n", err)
+		os.Exit(1)
+	}
 
 	httpServer := &http.Server{
 		Addr:              addr,

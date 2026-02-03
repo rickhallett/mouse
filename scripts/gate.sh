@@ -10,4 +10,7 @@ TELEGRAM_WEBHOOK_SECRET=dummy \
 ANTHROPIC_API_KEY=dummy \
 ./bin/mouse -check -config ./config/mouse.yaml
 
+echo "[gate] tests"
+go test ./...
+
 echo "[gate] ok"

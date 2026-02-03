@@ -4,12 +4,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sync"
 	"time"
 )
 
 type Logger struct {
 	service string
 }
+
+var (
+	fileMu   sync.Mutex
+	filePath string
+	file     *os.File
+)
 
 type entry struct {
 	Timestamp string            `json:"ts"`
@@ -21,6 +29,27 @@ type entry struct {
 
 func New(service string) *Logger {
 	return &Logger{service: service}
+}
+
+func SetFile(path string) error {
+	if path == "" {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("log mkdir: %w", err)
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return fmt.Errorf("log open: %w", err)
+	}
+	fileMu.Lock()
+	defer fileMu.Unlock()
+	if file != nil {
+		_ = file.Close()
+	}
+	file = f
+	filePath = path
+	return nil
 }
 
 func (l *Logger) Info(msg string, fields map[string]string) {
@@ -48,5 +77,11 @@ func (l *Logger) write(level, msg string, fields map[string]string) {
 		fmt.Fprintf(os.Stderr, "log marshal error: %v\n", err)
 		return
 	}
-	fmt.Println(string(b))
+	line := string(b)
+	fmt.Println(line)
+	fileMu.Lock()
+	defer fileMu.Unlock()
+	if file != nil {
+		_, _ = file.WriteString(line + "\n")
+	}
 }

@@ -1,11 +1,11 @@
 package telegram
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"mouse/internal/logging"
 )
@@ -19,10 +19,15 @@ type Config struct {
 type Handler struct {
 	cfg    Config
 	logger *logging.Logger
+	proc   Processor
 }
 
-func NewHandler(cfg Config, logger *logging.Logger) *Handler {
-	return &Handler{cfg: cfg, logger: logger}
+type Processor interface {
+	Process(ctx context.Context, update Update) (string, error)
+}
+
+func NewHandler(cfg Config, logger *logging.Logger, proc Processor) *Handler {
+	return &Handler{cfg: cfg, logger: logger, proc: proc}
 }
 
 type Update struct {
@@ -82,9 +87,26 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	allowed := h.isAllowed(update)
+	allowed := isAllowedUpdate(h.cfg.AllowFrom, update)
 	if !allowed {
 		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	if h.proc == nil {
+		h.logger.Error("telegram processor not configured", nil)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	sessionID, err := h.proc.Process(r.Context(), update)
+	if err != nil {
+		fields := map[string]string{"error": err.Error()}
+		if sessionID != "" {
+			fields["session_id"] = sessionID
+		}
+		h.logger.Error("telegram processing failed", fields)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
@@ -102,19 +124,4 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.logger.Info("telegram update received", fields)
 
 	w.WriteHeader(http.StatusOK)
-}
-
-func (h *Handler) isAllowed(update Update) bool {
-	if update.Message == nil || update.Message.From == nil {
-		return false
-	}
-	fromID := strconv.FormatInt(update.Message.From.ID, 10)
-	username := strings.ToLower(strings.TrimPrefix(update.Message.From.Username, "@"))
-	for _, allowed := range h.cfg.AllowFrom {
-		val := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(allowed), "@"))
-		if val == fromID || (val != "" && val == username) {
-			return true
-		}
-	}
-	return false
 }

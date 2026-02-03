@@ -14,3 +14,5 @@ primary_region = "lhr"
 
 [env]
   MOUSE_CONFIG = "/app/config/mouse.yaml"
+  TELEGRAM_WEBHOOK_PUBLIC_URL = "https://example.fly.dev"
+  TELEGRAM_WEBHOOK_PATH = "/telegram-webhook"
