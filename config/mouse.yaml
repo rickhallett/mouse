@@ -1,0 +1,76 @@
+app:
+  name: mouse
+  workspace: ./runtime
+  timezone: UTC
+
+telegram:
+  enabled: true
+  webhook:
+    enabled: true
+    public_url: "https://example.fly.dev/telegram-webhook"
+    path: "/telegram-webhook"
+    secret: "env:TELEGRAM_WEBHOOK_SECRET"
+  bot_token: "env:TELEGRAM_BOT_TOKEN"
+  allow_from:
+    - "123456789"
+  groups:
+    allow: []
+    require_mention: true
+
+llm:
+  provider: claude
+  api_key: "env:ANTHROPIC_API_KEY"
+  model: "claude-opus-4-5"
+  max_tokens: 4096
+
+sessions:
+  store: markdown
+  dir: "${app.workspace}/sessions"
+  max_history_messages: 50
+
+memory:
+  store: markdown
+  dir: "${app.workspace}/memory"
+  auto_sync: true
+
+index:
+  sqlite_path: "${app.workspace}/sqlite/mouse.db"
+  vector:
+    enabled: true
+    provider: "sqlite-vss"
+  watch:
+    paths:
+      - "${app.workspace}/memory"
+      - "${app.workspace}/sessions"
+      - "${app.workspace}/notes"
+
+sandbox:
+  enabled: true
+  docker:
+    image: "mouse-sandbox:latest"
+    workdir: "/workspace"
+    binds:
+      - "${app.workspace}:/workspace:rw"
+    read_only_root: true
+    network: "none"
+    tmpfs:
+      - "/tmp"
+  tools:
+    allow:
+      - read
+      - write
+      - edit
+      - memory_search
+      - sessions_list
+      - sessions_history
+      - sessions_send
+    deny:
+      - exec
+
+cron:
+  enabled: true
+  jobs:
+    - id: "daily-summary"
+      schedule: "0 8 * * *"
+      session: "system"
+      prompt: "Summarize yesterday's activity."

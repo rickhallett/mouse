@@ -1,0 +1,16 @@
+app = "mouse"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "scripts/docker/Dockerfile"
+
+[[mounts]]
+  source = "mouse_data"
+  destination = "/app/runtime"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+
+[env]
+  MOUSE_CONFIG = "/app/config/mouse.yaml"

@@ -1,0 +1,7 @@
+{
+  "network": "none",
+  "read_only_root": true,
+  "binds": [
+    "${WORKSPACE}:/workspace:rw"
+  ]
+}

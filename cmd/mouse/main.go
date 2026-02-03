@@ -1,0 +1,61 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"net/http"
+	"os"
+	"time"
+
+	"mouse/internal/config"
+	"mouse/internal/gateway"
+	"mouse/internal/logging"
+)
+
+func main() {
+	var (
+		configPath string
+		addr       string
+		checkOnly  bool
+	)
+
+	flag.StringVar(&configPath, "config", "./config/mouse.yaml", "path to config file")
+	flag.StringVar(&addr, "addr", ":8080", "listen address")
+	flag.BoolVar(&checkOnly, "check", false, "validate config and exit")
+	flag.Parse()
+
+	logger := logging.New("mouse")
+
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := cfg.EnsureRuntimeDirs(); err != nil {
+		fmt.Fprintf(os.Stderr, "runtime dirs error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if checkOnly {
+		fmt.Println("config ok")
+		return
+	}
+
+	server := gateway.NewServer(cfg, logger)
+
+	httpServer := &http.Server{
+		Addr:              addr,
+		Handler:           server.Handler(),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	logger.Info("gateway starting", map[string]string{
+		"addr": addr,
+	})
+
+	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
+		os.Exit(1)
+	}
+}
